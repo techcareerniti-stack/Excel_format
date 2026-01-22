@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Excel Auto Processor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+body { font-family: Arial; padding: 30px; background:#f4f6f8 }
+button { padding:10px 16px; background:#2563eb; color:#fff; border:none }
+</style>
+</head>
+<body>
+
+<h2>Upload Excel → Auto Process → Download CSV</h2>
+
+<input type="file" id="fileInput" accept=".xlsx,.csv">
+<br><br>
+<button onclick="processExcel()">Process & Download CSV</button>
+
+<script>
+function processExcel() {
+
+    const file = document.getElementById("fileInput").files[0];
+    if (!file) return alert("Upload file first");
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+
+        const workbook = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        const output = [];
+
+        rows.forEach(row => {
+
+            let original = (row.Category || "").toString().trim();
+            let category = original;
+
+            const first = category.charAt(0);
+            const last  = category.slice(-1);
+
+            /* -------- Gender -------- */
+            let gender = "";
+            if (first === "G") gender = "Male";
+            if (first === "L") gender = "Female";
+
+            /* -------- Remove first letter G/L -------- */
+            if (first === "G" || first === "L") {
+                category = category.substring(1);
+            }
+
+            /* -------- Alloted -------- */
+            let alloted = "";
+            if (last === "O" || last === "H") {
+                alloted = last;
+                category = category.slice(0, -1);
+            }
+
+            /* -------- Special -------- */
+            let special = "";
+            const upperCat = category.toUpperCase();
+
+            const isException = (upperCat === "EWS" || upperCat === "TFWS");
+
+            if (!isException) {
+                if (upperCat.endsWith("S") || upperCat.includes("ORPHAN")) {
+                    special = "Yes";
+
+                    // remove last S only if ends with S
+                    if (upperCat.endsWith("S")) {
+                        category = category.slice(0, -1);
+                    }
+                }
+            }
+
+            output.push({
+                ...row,
+                Gender: gender,
+                Category: category,
+                Special: special,
+                Alloted: alloted
+            });
+        });
+
+        downloadCSV(output);
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
+function downloadCSV(data) {
+
+    if (!data.length) return;
+
+    const headers = Object.keys(data[0]).join(",");
+    const rows = data.map(r =>
+        Object.values(r).map(v => `"${v}"`).join(",")
+    );
+
+    const csv = [headers, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "processed_data.csv";
+    link.click();
+}
+</script>
+
+</body>
+</html>
